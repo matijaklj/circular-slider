@@ -1,8 +1,8 @@
-// todo check how to do offsets on circle
+const SLIDER_WIDTH = 15;
 
 export class CircularSlider {
-    constructor(options) {
 
+    constructor(options) {
         // TODO assert requires options fields
         if (typeof options.container != "object") {
             throw Error('Error: options container must be a DOM object');
@@ -20,12 +20,13 @@ export class CircularSlider {
         this.radius = options.radius;
         this.value = 0;
 
+        this.callback = this.onValueChange;
     }
 
     setValue(value, callback) {
         this.callback = callback;
 
-        this.makeDraggable(this.svgContainer, this.sliderButtonCircle, this.width / 2, this.height / 2, this.radius, this.sliderBarCircle, this.callback);
+        this.registerEventListeners();
 
         this.onValueChange(value);
     }
@@ -33,6 +34,8 @@ export class CircularSlider {
     init() {
         this.width = this.container.offsetWidth;
         this.height = this.container.offsetHeight;
+        this.cx = this.width / 2;
+        this.cy = this.height / 2;
 
         var flagSvgCreated = false;
 
@@ -52,41 +55,36 @@ export class CircularSlider {
             flagSvgCreated = true;
         }
 
-
         // create background circle 
-        const bgCircle = this.createCircle(this.width / 2, this.height / 2, this.radius);
-        bgCircle.setAttribute("stroke-dasharray", 1)
+        this.bgCircle = this.createCircle(this.cx, this.cy, this.radius);
+        this.bgCircle.setAttribute("stroke-dasharray", 1)
+
 
         // create progress circle
-        const sliderBarCircle = this.createCircle(this.width / 2, this.height / 2, this.radius, this.color);
+        this.sliderBarCircle = this.createCircle(this.cx, this.cy, this.radius, this.color);
 
         this.circumference = (2 * Math.PI * this.radius);
         // add offset for progression
-        sliderBarCircle.setAttribute("stroke-dasharray", this.circumference)
-        sliderBarCircle.setAttribute("stroke-dashoffset", this.circumference)
-        //sliderBarCircle.setAttribute("stroke-dashoffset", ((100 - this.value) / 100) * this.circumference)
-        sliderBarCircle.style = 'transition: stroke-dashoffset 850ms;';
-        this.sliderBarCircle = sliderBarCircle;
+        this.sliderBarCircle.setAttribute("stroke-dasharray", this.circumference)
+        this.sliderBarCircle.setAttribute("stroke-dashoffset", this.circumference)
+        this.sliderBarCircle.style.transition = 'stroke-dashoffset 850ms; ease-in-out;';
+        this.sliderBarCircle.style.transformOrigin = (this.cx) + "px " + (this.cy) + "px";
+        this.sliderBarCircle.style.transform = "rotate(-90deg)";
 
-        // rotate progression bar circle, so the 0 value is on top
-        const transformGraphic = document.createElementNS("http://www.w3.org/2000/svg", "g");
-        transformGraphic.setAttribute("transform", "rotate(-90 " + (this.width / 2) + " " + (this.height / 2) + " )");
-        transformGraphic.appendChild(sliderBarCircle);
+        this.touchCircle = this.createCircle(this.cx, this.cy, this.radius, this.color)
+        this.touchCircle.setAttribute("stroke-opacity", "0");
 
-        //var sliderButtornCoord = this.getPositionFromProgress(this.value);
-        this.sliderButtonCircle = this.createCircle(this.width / 2, this.height / 2 - this.radius, 12, "black", 1, true)
+        this.sliderButton = this.createCircle(this.cx, this.cy - this.radius, 12, "black", 1, true)
+        this.sliderButton.style.transformOrigin = (this.cx) + "px " + (this.cy) + "px";
 
-        this.animateButton = document.createElementNS("http://www.w3.org/2000/svg", "animateMotion");
-        this.animateButton.setAttribute("dur", "600ms");
-        this.animateButton.setAttribute("restart", "always");
-        this.sliderButtonCircle.appendChild(this.animateButton);
 
-        this.makeDraggable(this.svgContainer, this.sliderButtonCircle, this.width / 2, this.height / 2, this.radius, this.sliderBarCircle, this.callback);
+        //this.registerEventListeners();
 
         // attach svg elements to the container
-        this.svgContainer.appendChild(bgCircle);
-        this.svgContainer.appendChild(transformGraphic);
-        this.svgContainer.appendChild(this.sliderButtonCircle);
+        this.svgContainer.appendChild(this.bgCircle);
+        this.svgContainer.appendChild(this.sliderBarCircle);
+        this.svgContainer.appendChild(this.touchCircle);
+        this.svgContainer.appendChild(this.sliderButton);
 
         // todo remove
         // for testing input to input progress
@@ -100,45 +98,49 @@ export class CircularSlider {
 
     }
 
+    registerEventListeners() {
+
+        this.touchCircle.addEventListener("click", evt => this.moveTo(evt));
+        this.touchCircle.addEventListener('touchstart', evt => this.moveTo(evt));
+
+        this.isSelected = false;
+        this.sliderButton.addEventListener('mousedown', (evt) => this.startDrag(evt));
+        this.svgContainer.addEventListener('mousemove', (evt) => this.drag(evt));
+        this.svgContainer.addEventListener('mouseup', (evt) => this.endDrag(evt));
+        this.svgContainer.addEventListener('mouseleave', (evt) => this.endDrag(evt));
+
+        this.sliderButton.addEventListener('touchstart', (evt) => this.startDrag(evt));
+        this.svgContainer.addEventListener('touchmove', (evt) => this.drag(evt));
+        this.sliderButton.addEventListener('touchend', (evt) => this.endDrag(evt));
+        this.sliderButton.addEventListener('touchleave', (evt) => this.endDrag(evt));
+        this.sliderButton.addEventListener('touchcancel', (evt) => this.endDrag(evt));
+    }
+
     onValueChange(newValue) {
-        var oldValue = this.value;
         this.value = newValue;
-        this.sliderBarCircle.style = 'transition: stroke-dashoffset 850ms;';
-        this.sliderBarCircle.setAttribute("stroke-dashoffset", ((100 - this.value) / 100) * this.circumference)
 
-        var sliderButtornCoord = this.getPositionFromProgress(this.value);
+        this.sliderButton.style.transition = "all 850ms ease-in-out"
+        this.sliderBarCircle.style.transition = "stroke-dashoffset 850ms ease-in-out";
 
-        var oldX = this.sliderButtonCircle.cx.baseVal.value;
-        var oldY = this.sliderButtonCircle.cy.baseVal.value;
-        
-        this.sliderButtonCircle.setAttribute("cx", sliderButtornCoord.x);
-        this.sliderButtonCircle.setAttribute("cy", sliderButtornCoord.y);
+        var angle = (360 * this.value) / 100;
 
-        var posX, posY;
-        posX = - (sliderButtornCoord.x - oldX);
-        posY = - (sliderButtornCoord.y - oldY);
 
-        console.log(sliderButtornCoord)
-        console.log(oldX, oldY)
-
-        var largeArcFlag = Math.abs(oldValue - this.value) <= 50 ? "0" : "1";
-        var sweepFlag = this.value < oldValue ? "0" : "1";
-        console.log(largeArcFlag)
-        //const animateButton = document.createElementNS("http://www.w3.org/2000/svg", "animateMotion");
-        //animateButton.setAttribute("dur", "850ms");
-        //animateButton.setAttribute("fill", "freeze");
-        this.animateButton.setAttribute("path", "M" + posX + "," + posY + " A" + this.radius + "," + this.radius + ", 0, " +
-            largeArcFlag + ", " + sweepFlag + ", " + 0 + ", " + 0);
-
-        this.animateButton.beginElement()
-
-        //this.sliderButtonCircle.appendChild(animateButton);
+        requestAnimationFrame(() => {
+            this.sliderBarCircle.setAttribute("stroke-dashoffset", ((100 - this.value) / 100) * this.circumference);
+            this.sliderButton.style.transform = "rotate(" + angle + "deg)";
+        });
 
         if (this.callback)
             this.callback(this.value);
+
     }
 
-    createCircle(cx, cy, radius, color, strokeWidth = 10, fill = false) {
+    updateSliderButtonPosition(coord) {
+        this.sliderButton.setAttribute("cx", coord.x);
+        this.sliderButton.setAttribute("cy", coord.y);
+    }
+
+    createCircle(cx, cy, radius, color, strokeWidth = SLIDER_WIDTH, fill = false) {
         const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
         c.setAttribute("cx", cx);
         c.setAttribute("cy", cy);
@@ -150,88 +152,90 @@ export class CircularSlider {
         return c;
     }
 
-    // test make draggable function
-    makeDraggable(parent, svg, cx, cy, radius, sliderBar, callback) {
-        var selectedElement = false;
+    moveTo(evt) {
+        evt.preventDefault();
+        var clickCoord = this.getMousePosition(evt);
 
-        svg.addEventListener('mousedown', startDrag);
-        parent.addEventListener('mousemove', drag);
-        parent.addEventListener('mouseup', endDrag);
-        parent.addEventListener('mouseleave', endDrag);
+        var newValue = this.getValueFromAngle(clickCoord, this.getAngle(clickCoord));
 
-        // mobile events TODO
-        svg.addEventListener('touchstart', startDrag);
-        svg.addEventListener('touchmove', drag);
-        svg.addEventListener('touchend', endDrag);
-        svg.addEventListener('touchleave', endDrag);
-        svg.addEventListener('touchcancel', endDrag);
+        this.onValueChange(newValue);
+    }
 
-        function startDrag(evt) {
-            selectedElement = svg;
-        }
+    getAngle(coord) {
+        return 0.5 * Math.PI + Math.atan((coord.y - this.cy) / (coord.x - this.cx));
+    }
 
-        function drag(evt) {
-            if (selectedElement) {
-                evt.preventDefault();
-                var coord = getMousePosition(evt);
+    getValueFromAngle(coord, endAngle) {
+        var fi = coord.x < this.cx ? endAngle + Math.PI : endAngle;
+        return (fi * 100) / (2 * Math.PI);
+    }
 
-                var r2 = radius;
-                var distance = Math.sqrt(Math.pow(coord.x - cx, 2) + Math.pow(coord.y - cy, 2));
+    radToDeg(rad) {
+        return rad * (180 / Math.PI);
+    }
 
-                var fiAngle = Math.atan((coord.y - cy) / (coord.x - cx))
+    getMousePosition(evt) {
+        var CTM = this.svgContainer.getScreenCTM();
+        if (evt.touches) { evt = evt.touches[0]; }
+        return {
+            x: (evt.clientX - CTM.e) / CTM.a,
+            y: (evt.clientY - CTM.f) / CTM.d
+        };
+    }
 
-                if (Math.abs(r2 - distance) < 50) {
-                    //console.log(evt.target.cx.baseVal.value)
-                    moveSlider(coord, 0.5 * Math.PI + fiAngle);
-                    // TODO constrain movememnt between 0 - 100
+    startDrag(evt) {
+        evt.preventDefault();
+        this.isSelected = true;
+    }
+
+    endDrag(evt) {
+        evt.preventDefault();
+        this.isSelected = false;
+    }
+
+    drag(evt) {
+        if (this.isSelected) {
+            evt.preventDefault();
+            var coord = this.getMousePosition(evt);
+
+            var distance = Math.sqrt(Math.pow(coord.x - this.cx, 2) + Math.pow(coord.y - this.cy, 2));
+
+            var fiAngle = Math.atan((coord.y - this.cy) / (coord.x - this.cx))
+
+            if (Math.abs(this.radius - distance) < 50) {
+                // TODO constrain movememnt between 0 - 100
+                if (this.value == 0 && coord.x < this.cx && coord.y < this.cy && fiAngle > 0) {
+                    //console.log("not allowed")
+                } else if (this.value == 100 && coord.x >= this.cx && coord.y < this.cy && fiAngle < 0) {
+                    //console.log("not allowed")
+                } else {
+                    fiAngle = coord.x < this.cx ? fiAngle + (1.5 * Math.PI) : fiAngle + (0.5 * Math.PI);
+
+                    this.sliderButton.style.transition = ""
+                    this.sliderBarCircle.style.transition = "";
+
+                    var angle = this.radToDeg(fiAngle);
+
+                    // calc value from angle
+                    var val = (angle * 100) / 360;
+                    requestAnimationFrame(() => {
+                        this.sliderBarCircle.setAttribute("stroke-dashoffset", ((100 - val) / 100) * this.circumference);
+                        this.sliderButton.style.transform = "rotate(" + angle + "deg)";
+                        this.value = val;
+
+                        if (this.callback)
+                            this.callback(this.value);
+                    });
+
                 }
-
-            }
-        }
-        function endDrag(evt) {
-            //console.log("end drag");
-            selectedElement = null;
-        }
-
-        // move slider function
-        function moveSlider(coord, endAngle) {
-            var endX, endY;
-            if (coord.x < cx) {
-                endX = cx - radius * Math.sin(endAngle);
-                endY = cy + radius * Math.cos(endAngle);
             } else {
-                endX = cx + radius * Math.sin(endAngle);
-                endY = cy - radius * Math.cos(endAngle);
+                this.endDrag(evt);
             }
 
-            selectedElement.setAttributeNS(null, "cx", endX);
-            selectedElement.setAttributeNS(null, "cy", endY);
-
-            var progress = getProgress(coord, endAngle);
-
-            if (callback)
-                callback(progress);
-
-            sliderBar.style = 'transition: none;';
-            sliderBar.setAttribute("stroke-dashoffset", ((100 - progress) / 100) * (2 * Math.PI * radius))
-        }
-
-        function getProgress(coord, endAngle) {
-            var fi = coord.x < cx ? endAngle + Math.PI : endAngle;
-            return (fi * 100) / (2 * Math.PI);
-        }
-
-        // get mouse position in SVG space
-        function getMousePosition(evt) {
-            var CTM = svg.getScreenCTM();
-            if (evt.touches) { evt = evt.touches[0]; }
-            return {
-                x: (evt.clientX - CTM.e) / CTM.a,
-                y: (evt.clientY - CTM.f) / CTM.d
-            };
         }
     }
 
+    // deprecated
     getPositionFromProgress(progress) {
         var cx = this.container.offsetWidth / 2;
         var cy = this.container.offsetHeight / 2;
@@ -243,65 +247,4 @@ export class CircularSlider {
         }
     }
 
-    // deprecated
-    // draw circle arc from fixed start position to specified angle
-    draw_arc(endAngle) {
-
-        var cx = this.container.offsetWidth / 2;
-        var cy = this.container.offsetHeight / 2;
-
-        const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
-
-        var endX = cx + this.radius * Math.sin(this.to_radian(endAngle));
-        var endY = cy - this.radius * Math.cos(this.to_radian(endAngle));
-
-        var largeArcFlag = endAngle <= 180 ? "0" : "1";
-
-        p.setAttribute("d", "M " + cx + " " + (cy - this.radius) + " A " + this.radius + " " + this.radius + ", 0, " +
-            largeArcFlag + ", 1, " + endX + ", " + endY)
-        p.setAttribute("stroke-width", 10)
-        p.setAttribute("stroke", this.color)
-        p.setAttribute("fill", "none");
-
-        return p;
-    }
-
-    to_radian(angle) {
-        return angle * Math.PI / 180;
-    }
-
-    // deprecated
-    draw_on_canvas() {
-        var canvas = this.container;
-        if (canvas.getContext) {
-            var ctx = canvas.getContext('2d');
-            var X = canvas.width / 2;
-            var Y = canvas.height / 2;
-            var R = this.radius;
-            ctx.beginPath();
-
-            var eangle = this.calc_end_angle(this.value) * Math.PI;
-            ctx.arc(X, Y, R, 1.5 * Math.PI, this.calc_end_angle(this.value) * Math.PI, false);
-            ctx.lineWidth = 10;
-            ctx.strokeStyle = this.color;
-            ctx.stroke();
-
-            var ctx2 = canvas.getContext('2d');
-
-            ctx2.beginPath();
-
-            ctx2.arc(X + R * Math.cos(eangle), Y + R * Math.sin(eangle), 12, 0, 2 * Math.PI, false);
-            ctx2.lineWidth = 1;
-            ctx2.strokeStyle = 'grey';
-            ctx2.fillStyle = 'grey';
-            ctx2.fill();
-            ctx2.stroke();
-        }
-    }
-
-    // deprecated
-    calc_end_angle(value) {
-        var x = ((2 * value) / 100) % 2;
-        return x - 0.5;
-    }
 }

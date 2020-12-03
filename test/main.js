@@ -3,7 +3,7 @@ import { CircularSlider } from '../circular_slider.js';
 export function init() {
   var options = {
     container: document.getElementById('main'),
-    color: '#FF0000',
+    color: '#32a852',
     min: 0,
     max: 100,
     step: 10,
@@ -14,7 +14,7 @@ export function init() {
 
   slider1.init();
 
-  slider1.setValue(90, onChange);
+  slider1.setValue(0, onChange);
   var millisecondsToWait = 1000;
   setTimeout(function () {
    // slider1.setValue(50, onChange);
