@@ -4,24 +4,18 @@ export function init() {
   var options = {
     container: document.getElementById('main'),
     color: '#32a852',
-    min: 0,
-    max: 100,
-    step: 10,
-    radius: 40
+    min: 100,
+    max: 200,
+    step: 25,
+    radius: 50
   };
 
   var slider1 = new CircularSlider(options);
 
   slider1.init();
 
-  slider1.setValue(0, onChange);
-  var millisecondsToWait = 1000;
-  setTimeout(function () {
-   // slider1.setValue(50, onChange);
-  }, millisecondsToWait);
-
-  
-  /*
+  slider1.setValue(110);
+  slider1.onChange(onChangeValue1);
 
   var options2 = {
     container: document.getElementById('main'),
@@ -29,32 +23,44 @@ export function init() {
     min: 0,
     max: 100,
     step: 10,
-    radius: 110
+    radius: 100
   };
 
   var slider2 = new CircularSlider(options2);
 
   slider2.init();
+  slider2.setValue(0);
+  slider2.onChange(onChangeValue2);
 
   var options3 = {
     container: document.getElementById('main'),
     color: '#0000FF',
-    min: 0,
-    max: 100,
+    min: 20,
+    max: 1000,
     step: 10,
-    radius: 75
+    radius: 150
   };
 
   var slider3 = new CircularSlider(options3);
 
   slider3.init();
-  */
+  slider3.setValue(500);
+  slider3.onChange(onChangeValue3);
+
+  function onChangeValue1(value) {
+    document.getElementById('value1').innerHTML = value;
+  }
+
+  function onChangeValue2(value) {
+    document.getElementById('value2').innerHTML = value;
+  }
+
+  function onChangeValue3(value) {
+    document.getElementById('value3').innerHTML = value;
+  }
 }
 
-function onChange(value) {
-  document.getElementById('value').innerHTML = "value = " + value;
-}
-
+/*
 export function svg() {
   // create the svg element
   var container = document.getElementById("main");
@@ -88,6 +94,8 @@ export function svg() {
   // attach container to document
   document.getElementById("main").appendChild(svg1);
 }
+
+*/
 
 window.onload = function () {
   init();
